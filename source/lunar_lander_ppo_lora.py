@@ -8,9 +8,9 @@ from torch import distributions
 from tqdm import tqdm
 from dataclasses import dataclass
 
-from utils import *
-from models import *
-from helpers import *
+from source.utils import *
+from source.models import *
+from source.helpers import *
 
 def main(
     config: tunableConfig

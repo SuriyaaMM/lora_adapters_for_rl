@@ -8,7 +8,7 @@ import pandas as pd
 
 from typing import List, Tuple
 from tqdm import tqdm
-from utils import rolloutBuffer, tunableConfig
+from source.utils import rolloutBuffer, tunableConfig
 
 def collect_trajectories(
     n_steps: int, 

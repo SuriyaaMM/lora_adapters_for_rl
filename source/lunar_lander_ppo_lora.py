@@ -8,9 +8,9 @@ from torch import distributions
 from tqdm import tqdm
 from dataclasses import dataclass
 
-from source.utils import *
-from source.models import *
-from source.helpers import *
+from utils import *
+from models import *
+from helpers import *
 
 def main(
     config: tunableConfig
@@ -50,7 +50,8 @@ def main(
             train_analytics_savefile=config.train_base_analytics_file,
             eval_analytics_savefile=config.eval_base_analytics_file,
             eval_argmax_analytics_savefile=config.eval_argmax_base_analytics_file,
-            policy_model_savefile=config.trained_base_state_dict_file
+            policy_model_savefile=config.trained_base_state_dict_file,
+            eval_only=False,
         )
     else:
         policy_network_base.load_state_dict(
@@ -87,14 +88,15 @@ def main(
         train_analytics_savefile=config.train_lora_analytics_file,
         eval_analytics_savefile=config.eval_lora_analytics_file,
         eval_argmax_analytics_savefile=config.eval_argmax_lora_analytics_file,
-        policy_model_savefile=config.trained_lora_state_dict_file
+        policy_model_savefile=config.trained_lora_state_dict_file,
+        eval_only=False
     )
 
     if config.retrain_base:
         policy_network_base.requires_grad_(True)
         train(
             config=config,
-            epochs=config.epochs_base,
+            epochs=config.epochs_lora,
             n_steps=config.n_steps_base,
             env=perturbed_env,
             policy_model=policy_network_base,
@@ -104,16 +106,17 @@ def main(
             train_analytics_savefile=config.train_rebase_analytics_file,
             eval_analytics_savefile=config.eval_rebase_analytics_file,
             eval_argmax_analytics_savefile=config.eval_argmax_rebase_analytics_file,
-            policy_model_savefile=config.trained_rebase_state_dict_file
+            policy_model_savefile=config.trained_rebase_state_dict_file,
+            eval_only=False
         )
 
 if __name__ == "__main__":
     tunable_config = tunableConfig(
         env_id="LunarLander-v3",
         epochs_base=125,
-        epochs_eval=1,
-        epochs_lora=25,
-        epochs_ppo=25,
+        epochs_eval=15,
+        epochs_lora=50,
+        epochs_ppo=20,
         lr_base=3e-4,
         lr_lora=3e-3,
         n_steps_base=8000,
@@ -130,18 +133,18 @@ if __name__ == "__main__":
         train_base=True,
         retrain_base=True,
         train_lora=True,
-        train_base_analytics_file="data/base_analytics.csv",
-        train_lora_analytics_file="data/lora_analytics.csv",
-        train_rebase_analytics_file="data/rebase_analytics.csv",
-        trained_base_state_dict_file="models/policy_network_base.pth",
-        trained_lora_state_dict_file="models/policy_network_lora.pth",
-        trained_rebase_state_dict_file="models/policy_network_rebase.pth",
-        eval_base_analytics_file="data/eval_base_analytics.csv",
-        eval_lora_analytics_file="data/eval_lora_analytics.csv",
-        eval_rebase_analytics_file="data/eval_rebase_analytics.csv",
-        eval_argmax_base_analytics_file="data/eval_argmax_base_analytics.csv",
-        eval_argmax_lora_analytics_file="data/eval_argmax_lora_analytics.csv",
-        eval_argmax_rebase_analytics_file="data/eval_argmax_rebase_analytics.csv"
+        train_base_analytics_file="data/base_analytics2.csv",
+        train_lora_analytics_file="data/lora_analytics2.csv",
+        train_rebase_analytics_file="data/rebase_analytics2.csv",
+        trained_base_state_dict_file="models/policy_network_base2.pth",
+        trained_lora_state_dict_file="models/policy_network_lora2.pth",
+        trained_rebase_state_dict_file="models/policy_network_rebase2.pth",
+        eval_base_analytics_file="data/eval_base_analytics2.csv",
+        eval_lora_analytics_file="data/eval_lora_analytics2.csv",
+        eval_rebase_analytics_file="data/eval_rebase_analytics2.csv",
+        eval_argmax_base_analytics_file="data/eval_argmax_base_analytics2.csv",
+        eval_argmax_lora_analytics_file="data/eval_argmax_lora_analytics2.csv",
+        eval_argmax_rebase_analytics_file="data/eval_argmax_rebase_analytics2.csv"
     )
 
     main(config=tunable_config)

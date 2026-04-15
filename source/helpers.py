@@ -8,7 +8,7 @@ import pandas as pd
 
 from typing import List, Tuple
 from tqdm import tqdm
-from source.utils import rolloutBuffer, tunableConfig
+from utils import rolloutBuffer, tunableConfig
 
 def collect_trajectories(
     n_steps: int, 
@@ -96,8 +96,8 @@ def collect_trajectories(
             
     pbar.close()
     
-    avg_episode_reward = sum(completed_episode_rewards) / len(completed_episode_rewards) if len(completed_episode_rewards) > 0 else current_episode_reward
-    return rollouts, avg_episode_reward
+    completed_episode_rewards = torch.tensor(completed_episode_rewards)
+    return rollouts, completed_episode_rewards.mean(), completed_episode_rewards.std()
 
 def compute_ppo_advantages(
     rollouts: List[rolloutBuffer], 
@@ -188,7 +188,8 @@ def __get_data(
     advantages_mean: torch.Tensor,
     advantages_median: torch.Tensor,
     advantages_std: torch.Tensor,
-    avg_ep_reward: float,
+    total_reward_mean: torch.Tensor,
+    total_reward_std: torch.Tensor,
     loss: float
 ):
     entropies = torch.stack([r.entropy for r in rollouts])
@@ -197,7 +198,8 @@ def __get_data(
     action_std = torch.stack([r.std for r in rollouts])
 
     return {
-        "total_reward" : avg_ep_reward,
+        "total_reward_mean" : total_reward_mean.item(),
+        "total_reward_std": total_reward_std.item(),
 
         "entropies_mean" : entropies.mean().item(),
         "entropies_std" : entropies.std().item(),
@@ -230,6 +232,7 @@ def train(
    eval_analytics_savefile: str,
    eval_argmax_analytics_savefile: str,
    policy_model_savefile: str,
+   eval_only: bool
 ):
     pbar = tqdm(
         total=epochs, 
@@ -240,46 +243,49 @@ def train(
     train_data = []
     eval_data = []
     eval_argmax_data = []
-
+    
     for _ in range(epochs):
-        
-        # =----- collect trajectories & do ppo update -----=
-        rollouts, avg_ep_reward = collect_trajectories(
-            n_steps=n_steps, 
-            env=env, 
-            policy_model=policy_model, 
-            device=config.device, 
-            seed=config.seed,
-            argmax_action=False
-        )
-        returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
-            rollouts=rollouts, 
-            gamma=config.gamma
-        )
-        loss = update_ppo(
-            epochs=config.epochs_ppo,
-            policy_model=policy_model,
-            optimiser=optimiser,
-            rollouts=rollouts,
-            returns=returns,
-            advantages=advantages,
-            clip_ratio=config.clip_ratio,
-            critic_loss_weight=config.critic_loss_weight,
-            entropy_regulariser_weight=config.entropy_regulariser_weight
-        )
-        
-        train_data.append(__get_data(
-            rollouts=rollouts,
-            advantages_mean=advantages_mean,
-            advantages_median=advantages_median,
-            advantages_std=advantages_std,
-            avg_ep_reward=avg_ep_reward,
-            loss=loss
-        ))
+        if not eval_only:
+            policy_model.train()
+            # =----- collect trajectories & do ppo update -----=
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
+                n_steps=n_steps, 
+                env=env, 
+                policy_model=policy_model, 
+                device=config.device, 
+                seed=config.seed,
+                argmax_action=False
+            )
+            returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
+                rollouts=rollouts, 
+                gamma=config.gamma
+            )
+            loss = update_ppo(
+                epochs=config.epochs_ppo,
+                policy_model=policy_model,
+                optimiser=optimiser,
+                rollouts=rollouts,
+                returns=returns,
+                advantages=advantages,
+                clip_ratio=config.clip_ratio,
+                critic_loss_weight=config.critic_loss_weight,
+                entropy_regulariser_weight=config.entropy_regulariser_weight
+            )
+            
+            train_data.append(__get_data(
+                rollouts=rollouts,
+                advantages_mean=advantages_mean,
+                advantages_median=advantages_median,
+                advantages_std=advantages_std,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
+                loss=loss
+            ))
 
         # =----- random sampling evaluation -----=
+        policy_model.eval()
         with torch.inference_mode():
-            rollouts, avg_ep_reward = collect_trajectories(
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
                 n_steps=n_steps, 
                 env=env, 
                 policy_model=policy_model, 
@@ -296,13 +302,14 @@ def train(
                 advantages_mean=advantages_mean,
                 advantages_median=advantages_median,
                 advantages_std=advantages_std,
-                avg_ep_reward=avg_ep_reward,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
                 loss=loss
             ))
 
         # =----- argmax sampling evaluation -----=
         with torch.inference_mode():
-            rollouts, avg_ep_reward = collect_trajectories(
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
                 n_steps=n_steps, 
                 env=env, 
                 policy_model=policy_model, 
@@ -319,7 +326,8 @@ def train(
                 advantages_mean=advantages_mean,
                 advantages_median=advantages_median,
                 advantages_std=advantages_std,
-                avg_ep_reward=avg_ep_reward,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
                 loss=loss
             ))
 

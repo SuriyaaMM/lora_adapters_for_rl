@@ -1,0 +1,861 @@
+# ./main.py
+def main():
+    print("Hello from lora-adapters-for-rl!")
+
+
+if __name__ == "__main__":
+    main()
+
+# ./main.py
+def main():
+    print("Hello from lora-adapters-for-rl!")
+
+
+if __name__ == "__main__":
+    main()
+
+
+# ./source/lunar_lander_ppo_lora_analysis.py
+import pandas as pd 
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.axes as plt_axes
+import matplotlib.figure as plt_figure
+from typing import List
+
+def draw_metrics(
+    eval_lora_df: pd.DataFrame,
+    eval_argmax_lora_df: pd.DataFrame,
+    lora_df: pd.DataFrame,
+    eval_rebase_df: pd.DataFrame,
+    eval_argmax_rebase_df: pd.DataFrame,
+    rebase_df: pd.DataFrame,
+    metric_name: str,
+    axes: List[List[plt_axes.Axes]],
+    row_index: int = 0,
+    do_median: bool = True,
+):
+    mean_metric_name = metric_name + "_mean"
+    std_metric_name = metric_name + "_std"
+    median_metric_name = metric_name + "_median"
+
+    eval_lora_total_reward_mean = eval_lora_df[mean_metric_name]
+    eval_lora_total_reward_std  = eval_lora_df[std_metric_name]
+    eval_rebase_total_reward_mean = eval_rebase_df[mean_metric_name]
+    eval_rebase_total_reward_std  = eval_rebase_df[std_metric_name]
+    
+    eval_argmax_lora_total_reward_mean = eval_argmax_lora_df[mean_metric_name]
+    eval_argmax_lora_total_reward_std  = eval_argmax_lora_df[std_metric_name]
+    eval_argmax_rebase_total_reward_mean = eval_argmax_rebase_df[mean_metric_name]
+    eval_argmax_rebase_total_reward_std  = eval_argmax_rebase_df[std_metric_name]
+
+    train_lora_total_reward_mean = lora_df[mean_metric_name]
+    train_lora_total_reward_std  = lora_df[std_metric_name]
+    train_rebase_total_reward_mean = rebase_df[mean_metric_name]
+    train_rebase_total_reward_std  = rebase_df[std_metric_name]
+
+
+    axes[row_index][0].plot(eval_lora_total_reward_mean, label="lora")
+    axes[row_index][0].fill_between(
+        range(len(eval_argmax_lora_total_reward_mean)),
+        eval_lora_total_reward_mean - eval_lora_total_reward_std,
+        eval_lora_total_reward_mean + eval_lora_total_reward_std,
+        alpha=0.1, label="lora"
+    )
+
+    axes[row_index][0].plot(eval_rebase_total_reward_mean, label="rebase")
+    axes[row_index][0].fill_between(
+        range(len(eval_rebase_total_reward_mean)),
+        eval_rebase_total_reward_mean - eval_rebase_total_reward_std,
+        eval_rebase_total_reward_mean + eval_rebase_total_reward_std,
+        alpha=0.1, label="rebase"
+    )
+
+    axes[row_index][0].set_title(f"random sampling {metric_name}")
+    axes[row_index][0].legend()
+
+    axes[row_index][1].plot(eval_argmax_lora_total_reward_mean, label="lora")
+    axes[row_index][1].fill_between(
+        range(len(eval_argmax_lora_total_reward_mean)),
+        eval_argmax_lora_total_reward_mean - eval_argmax_lora_total_reward_std,
+        eval_argmax_lora_total_reward_mean + eval_argmax_lora_total_reward_std,
+        alpha=0.1, label="lora"
+    )
+    axes[row_index][1].plot(eval_argmax_rebase_total_reward_mean, label="rebase")
+    axes[row_index][1].fill_between(
+        range(len(eval_argmax_rebase_total_reward_mean)),
+        eval_argmax_rebase_total_reward_mean - eval_argmax_rebase_total_reward_std,
+        eval_argmax_rebase_total_reward_mean + eval_argmax_rebase_total_reward_std,
+        alpha=0.1, label="rebase"
+    )
+    axes[row_index][1].set_title(f"argmax action {metric_name}")
+    axes[row_index][1].legend()
+
+    axes[row_index][2].plot(train_lora_total_reward_mean, label="lora")
+    axes[row_index][2].fill_between(
+        range(len(train_lora_total_reward_mean)),
+        train_lora_total_reward_mean - train_lora_total_reward_std,
+        train_lora_total_reward_mean + train_lora_total_reward_std,
+        alpha=0.1, label="lora"
+    )
+    axes[row_index][2].plot(train_rebase_total_reward_mean, label="rebase")
+    axes[row_index][2].fill_between(
+        range(len(train_rebase_total_reward_mean)),
+        train_rebase_total_reward_mean - train_rebase_total_reward_std,
+        train_rebase_total_reward_mean + train_rebase_total_reward_std,
+        alpha=0.1, label="rebase"
+    )
+    axes[row_index][2].set_title(f"training phase {metric_name}")
+    axes[row_index][2].legend()
+    
+
+def plot():
+    base_df = pd.read_csv("data/base_analytics2.csv")
+    eval_base_df = pd.read_csv("data/eval_base_analytics2.csv")
+    eval_argmax_base_df = pd.read_csv("data/eval_argmax_base_analytics2.csv")
+    rebase_df = pd.read_csv("data/rebase_analytics2.csv")
+    eval_rebase_df = pd.read_csv("data/eval_rebase_analytics2.csv")
+    eval_argmax_rebase_df = pd.read_csv("data/eval_argmax_rebase_analytics2.csv")
+    lora_df = pd.read_csv("data/lora_analytics2.csv")
+    eval_lora_df = pd.read_csv("data/eval_lora_analytics2.csv")
+    eval_argmax_lora_df = pd.read_csv("data/eval_argmax_lora_analytics2.csv")
+
+    print(eval_base_df.columns)
+
+    fig: plt_figure.Figure
+    axes: List[List[plt_axes.Axes]]
+
+    fig, axes = plt.subplots(
+        nrows=4, ncols=3,
+        figsize=(30, 30)
+    )
+
+    draw_metrics(
+        eval_lora_df,
+        eval_argmax_lora_df,
+        lora_df,
+        eval_rebase_df,
+        eval_argmax_rebase_df,
+        rebase_df, "total_reward", axes, 0
+    )
+    draw_metrics(
+        eval_lora_df,
+        eval_argmax_lora_df,
+        lora_df,
+        eval_rebase_df,
+        eval_argmax_rebase_df,
+        rebase_df, "entropies", axes, 1
+    )
+    draw_metrics(
+        eval_lora_df,
+        eval_argmax_lora_df,
+        lora_df,
+        eval_rebase_df,
+        eval_argmax_rebase_df,
+        rebase_df, "advantages", axes, 2
+    )
+    draw_metrics(
+        eval_lora_df,
+        eval_argmax_lora_df,
+        lora_df,
+        eval_rebase_df,
+        eval_argmax_rebase_df,
+        rebase_df, "perplexities", axes, 3
+    )
+
+    
+
+    plt.savefig("analysis/lunar_lander_dashboard.png", dpi=300)
+if __name__ == "__main__":
+    plot()
+
+# ./source/lunar_lander_ppo_lora.py
+import gymnasium
+import torch
+import pandas as pd
+import torch.nn.functional as F
+from typing import Tuple, List
+from torch import nn
+from torch import distributions
+from tqdm import tqdm
+from dataclasses import dataclass
+
+from utils import *
+from models import *
+from helpers import *
+
+def main(
+    config: tunableConfig
+):
+    device = config.device
+
+    env = gymnasium.make(
+        id=config.env_id
+    )
+    perturbed_env = gymnasium.make(
+        id=config.env_id, 
+        enable_wind=True, 
+        wind_power=config.perturbation_wind_power, 
+        turbulence_power=config.perturbation_wind_turbulence
+    )
+
+    policy_network_base = policyNetwork(
+        observation_shape=env.observation_space.shape[0], 
+        action_shape=env.action_space.n, 
+        device=device
+    )
+    optimiser_base = torch.optim.AdamW(
+        params=policy_network_base.parameters(), 
+        lr=config.lr_base
+    )
+
+    if config.train_base:
+        train(
+            config=config,
+            epochs=config.epochs_base,
+            n_steps=config.n_steps_base,
+            env=env,
+            policy_model=policy_network_base,
+            optimiser=optimiser_base,
+            desc="training base model",
+            colour="magenta",
+            train_analytics_savefile=config.train_base_analytics_file,
+            eval_analytics_savefile=config.eval_base_analytics_file,
+            eval_argmax_analytics_savefile=config.eval_argmax_base_analytics_file,
+            policy_model_savefile=config.trained_base_state_dict_file,
+            eval_only=False,
+        )
+    else:
+        policy_network_base.load_state_dict(
+            torch.load(
+                config.trained_base_state_dict_file, 
+                map_location=device
+            )
+        )
+    
+    policy_network_lora = policyNetworkLoRA(
+        policy_network=policy_network_base, 
+        rank=config.rank
+    )
+    optimiser_lora = torch.optim.AdamW(
+        params=policy_network_lora.parameters(), 
+        lr=config.lr_lora
+    )
+
+    policy_network_trainable_parameters = sum(p.numel() for p in policy_network_base.parameters())
+    policy_network_lora_trainable_parameters = sum(p.numel() for p in policy_network_lora.parameters() if p.requires_grad)
+
+    print(f"policy network trainable parameters : {policy_network_trainable_parameters / (1e6)}M")
+    print(f"lora trainable parameters : {policy_network_lora_trainable_parameters / (1e6)}M | {(policy_network_lora_trainable_parameters / policy_network_trainable_parameters) * 100}% of original")
+
+    train(
+        config=config,
+        epochs=config.epochs_lora,
+        n_steps=config.n_steps_lora,
+        env=perturbed_env,
+        policy_model=policy_network_lora,
+        optimiser=optimiser_lora,
+        desc="training LoRA model",
+        colour="green",
+        train_analytics_savefile=config.train_lora_analytics_file,
+        eval_analytics_savefile=config.eval_lora_analytics_file,
+        eval_argmax_analytics_savefile=config.eval_argmax_lora_analytics_file,
+        policy_model_savefile=config.trained_lora_state_dict_file,
+        eval_only=False
+    )
+
+    if config.retrain_base:
+        policy_network_base.requires_grad_(True)
+        train(
+            config=config,
+            epochs=config.epochs_lora,
+            n_steps=config.n_steps_base,
+            env=perturbed_env,
+            policy_model=policy_network_base,
+            optimiser=optimiser_base,
+            desc="re-training base model",
+            colour="blue",
+            train_analytics_savefile=config.train_rebase_analytics_file,
+            eval_analytics_savefile=config.eval_rebase_analytics_file,
+            eval_argmax_analytics_savefile=config.eval_argmax_rebase_analytics_file,
+            policy_model_savefile=config.trained_rebase_state_dict_file,
+            eval_only=False
+        )
+
+if __name__ == "__main__":
+    tunable_config = tunableConfig(
+        env_id="LunarLander-v3",
+        epochs_base=125,
+        epochs_eval=15,
+        epochs_lora=50,
+        epochs_ppo=20,
+        lr_base=3e-4,
+        lr_lora=3e-3,
+        n_steps_base=8000,
+        n_steps_lora=8000,
+        perturbation_wind_power=15.0,
+        perturbation_wind_turbulence=1.5,
+        rank=12,
+        clip_ratio=0.30,
+        critic_loss_weight=0.5,
+        entropy_regulariser_weight=0.01,
+        gamma=0.99,
+        device=torch.device("cuda"),
+        seed=42,
+        train_base=True,
+        retrain_base=True,
+        train_lora=True,
+        train_base_analytics_file="data/base_analytics2.csv",
+        train_lora_analytics_file="data/lora_analytics2.csv",
+        train_rebase_analytics_file="data/rebase_analytics2.csv",
+        trained_base_state_dict_file="models/policy_network_base2.pth",
+        trained_lora_state_dict_file="models/policy_network_lora2.pth",
+        trained_rebase_state_dict_file="models/policy_network_rebase2.pth",
+        eval_base_analytics_file="data/eval_base_analytics2.csv",
+        eval_lora_analytics_file="data/eval_lora_analytics2.csv",
+        eval_rebase_analytics_file="data/eval_rebase_analytics2.csv",
+        eval_argmax_base_analytics_file="data/eval_argmax_base_analytics2.csv",
+        eval_argmax_lora_analytics_file="data/eval_argmax_lora_analytics2.csv",
+        eval_argmax_rebase_analytics_file="data/eval_argmax_rebase_analytics2.csv"
+    )
+
+    main(config=tunable_config)
+
+# ./source/helpers.py
+import gymnasium
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.distributions as distributions
+import torch.optim as optim
+import pandas as pd
+
+from typing import List, Tuple
+from tqdm import tqdm
+from utils import rolloutBuffer, tunableConfig
+
+def collect_trajectories(
+    n_steps: int, 
+    env: gymnasium.Env, 
+    policy_model: nn.Module, 
+    device: torch.device, 
+    seed: int,
+    argmax_action: bool
+):
+    pbar = tqdm(
+        total=n_steps, 
+        desc="collecting trajectories", 
+        colour="green", 
+        leave=False
+    )
+
+    observation, _ = env.reset(seed=seed)
+    observation_tensor = torch.tensor(
+        observation, 
+        dtype=torch.float32, 
+        device=device
+    )
+
+    rollouts: List[rolloutBuffer] = []
+    completed_episode_rewards = []
+    current_episode_reward = 0.0
+
+    with torch.inference_mode(): 
+        for _ in range(n_steps):
+            # policy distribution & value estimate
+            logits, value = policy_model(observation_tensor)
+            action_dist = distributions.Categorical(logits=logits)
+            
+            # argmax action for validation
+            if argmax_action:
+                action_tensor = torch.argmax(logits)
+            else:
+                action_tensor = action_dist.sample()
+            
+            # perform action in environment
+            action = action_tensor.item()
+            next_observation, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+
+            reward_tensor = torch.tensor(
+                reward, 
+                dtype=torch.float32, 
+                device=device
+            )
+            done_tensor = torch.tensor(
+                done, 
+                dtype=torch.bool, 
+                device=device
+            )
+
+            current_episode_reward += reward
+
+            # gather rollout buffer
+            buffer = rolloutBuffer(
+                observation=observation_tensor, 
+                reward=reward_tensor,
+                action=action_tensor,
+                log_prob=action_dist.log_prob(action_tensor),
+                value=value.squeeze(-1),
+                entropy=action_dist.entropy(),
+                mean=action_dist.mean,
+                std=action_dist.stddev,
+                perplexity=action_dist.perplexity(),
+                done=done_tensor     
+            )
+            rollouts.append(buffer)
+
+            if done:
+                completed_episode_rewards.append(current_episode_reward)
+                current_episode_reward = 0.0
+                next_observation, _ = env.reset()
+
+            observation_tensor = torch.tensor(
+                next_observation, 
+                dtype=torch.float32, 
+                device=device
+            )
+
+            pbar.update()
+            
+    pbar.close()
+    
+    completed_episode_rewards = torch.tensor(completed_episode_rewards)
+    return rollouts, completed_episode_rewards.mean(), completed_episode_rewards.std()
+
+def compute_ppo_advantages(
+    rollouts: List[rolloutBuffer], 
+    gamma: float = 0.99
+) -> Tuple[
+    torch.Tensor, 
+    torch.Tensor, 
+    torch.Tensor, 
+    torch.Tensor, 
+    torch.Tensor
+]:
+    returns = []
+    R = 0.0
+    for step in reversed(rollouts):
+        if step.done:
+            R = 0.0 
+        R = step.reward.item() + gamma * R
+        returns.insert(0, R)
+        
+    returns_tensor = torch.tensor(
+        returns, 
+        dtype=torch.float32, 
+        device=rollouts[0].reward.device
+    )
+    values_tensor = torch.stack([r.value for r in rollouts])
+    
+    advantages = returns_tensor - values_tensor
+    advantages_mean = advantages.mean()
+    advantages_std = advantages.std()
+    advantages_median = advantages.median()
+    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+    
+    return returns_tensor, advantages, advantages_mean, advantages_std, torch.tensor(advantages_median.item())
+
+def update_ppo(
+    epochs: int,
+    policy_model: nn.Module, 
+    optimiser: torch.optim.Optimizer, 
+    rollouts: List[rolloutBuffer], 
+    returns: torch.Tensor,
+    advantages: torch.Tensor,
+    clip_ratio: float,
+    critic_loss_weight: float,
+    entropy_regulariser_weight: float
+) -> float:
+
+    obs = torch.stack([r.observation for r in rollouts])
+    actions = torch.stack([r.action for r in rollouts])
+    old_log_probs = torch.stack([r.log_prob for r in rollouts]).detach()
+    
+    total_loss = 0.0
+    
+    pbar = tqdm(
+        total=epochs,
+        desc="ppo training",
+        colour="yellow",
+        leave=False
+    )
+    for _ in range(epochs):
+        logits, values = policy_model(obs)
+        dist = distributions.Categorical(logits=logits)
+        new_log_probs = dist.log_prob(actions)
+        entropy = dist.entropy().mean()
+
+        ratio = torch.exp(new_log_probs - old_log_probs)
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1.0 - clip_ratio, 1.0 + clip_ratio) * advantages
+        actor_loss = -torch.min(surr1, surr2).mean()
+
+        critic_loss = F.smooth_l1_loss(values.squeeze(-1), returns)
+        loss = actor_loss + critic_loss_weight * critic_loss - entropy_regulariser_weight * entropy
+
+        optimiser.zero_grad()
+        loss.backward()
+        optimiser.step()
+        
+        total_loss += loss.item()
+
+        pbar.update()
+        pbar.set_postfix({
+            "loss" : loss.item()
+        })
+
+    return total_loss / epochs
+
+def __get_data(
+    rollouts: List[rolloutBuffer],
+    advantages_mean: torch.Tensor,
+    advantages_median: torch.Tensor,
+    advantages_std: torch.Tensor,
+    total_reward_mean: torch.Tensor,
+    total_reward_std: torch.Tensor,
+    loss: float
+):
+    entropies = torch.stack([r.entropy for r in rollouts])
+    perplexities = torch.stack([r.perplexity for r in rollouts])
+    action_mean = torch.stack([r.mean for r in rollouts])
+    action_std = torch.stack([r.std for r in rollouts])
+
+    return {
+        "total_reward_mean" : total_reward_mean.item(),
+        "total_reward_std": total_reward_std.item(),
+
+        "entropies_mean" : entropies.mean().item(),
+        "entropies_std" : entropies.std().item(),
+        "entropies_median" : entropies.median().item(),
+
+        "advantages_mean" : advantages_mean.item(),
+        "advantages_std" : advantages_std.item(),
+        "advantages_median" : advantages_median.item(),
+
+        "perplexities_mean" : perplexities.mean().item(),
+        "perplexities_std" : perplexities.std().item(),
+        "perplexities_median" : perplexities.median().item(),
+
+        "action_mean_median" : action_mean.median().item(),
+        "action_std_median" : action_std.median().item(),
+
+        "loss": loss
+    }
+
+def train(
+   config: tunableConfig,
+   epochs: int,
+   n_steps: int,
+   env: gymnasium.Env,
+   policy_model: nn.Module,
+   optimiser: optim.Optimizer,
+   desc: str,
+   colour: str,
+   train_analytics_savefile: str,
+   eval_analytics_savefile: str,
+   eval_argmax_analytics_savefile: str,
+   policy_model_savefile: str,
+   eval_only: bool
+):
+    pbar = tqdm(
+        total=epochs, 
+        desc=desc, 
+        colour=colour
+    )
+
+    train_data = []
+    eval_data = []
+    eval_argmax_data = []
+    
+    for _ in range(epochs):
+        if not eval_only:
+            policy_model.train()
+            # =----- collect trajectories & do ppo update -----=
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
+                n_steps=n_steps, 
+                env=env, 
+                policy_model=policy_model, 
+                device=config.device, 
+                seed=config.seed,
+                argmax_action=False
+            )
+            returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
+                rollouts=rollouts, 
+                gamma=config.gamma
+            )
+            loss = update_ppo(
+                epochs=config.epochs_ppo,
+                policy_model=policy_model,
+                optimiser=optimiser,
+                rollouts=rollouts,
+                returns=returns,
+                advantages=advantages,
+                clip_ratio=config.clip_ratio,
+                critic_loss_weight=config.critic_loss_weight,
+                entropy_regulariser_weight=config.entropy_regulariser_weight
+            )
+            
+            train_data.append(__get_data(
+                rollouts=rollouts,
+                advantages_mean=advantages_mean,
+                advantages_median=advantages_median,
+                advantages_std=advantages_std,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
+                loss=loss
+            ))
+
+        # =----- random sampling evaluation -----=
+        policy_model.eval()
+        with torch.inference_mode():
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
+                n_steps=n_steps, 
+                env=env, 
+                policy_model=policy_model, 
+                device=config.device, 
+                seed=config.seed,
+                argmax_action=False
+            )
+            returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
+                rollouts=rollouts, 
+                gamma=config.gamma
+            )
+            eval_data.append(__get_data(
+                rollouts=rollouts,
+                advantages_mean=advantages_mean,
+                advantages_median=advantages_median,
+                advantages_std=advantages_std,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
+                loss=loss
+            ))
+
+        # =----- argmax sampling evaluation -----=
+        with torch.inference_mode():
+            rollouts, total_reward_mean, total_reward_std = collect_trajectories(
+                n_steps=n_steps, 
+                env=env, 
+                policy_model=policy_model, 
+                device=config.device, 
+                seed=config.seed,
+                argmax_action=True
+            )
+            returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
+                rollouts=rollouts, 
+                gamma=config.gamma
+            )
+            eval_argmax_data.append(__get_data(
+                rollouts=rollouts,
+                advantages_mean=advantages_mean,
+                advantages_median=advantages_median,
+                advantages_std=advantages_std,
+                total_reward_mean=total_reward_mean,
+                total_reward_std=total_reward_std,
+                loss=loss
+            ))
+
+        pbar.update()
+
+    df = pd.DataFrame(train_data)
+    df.to_csv(train_analytics_savefile)
+    df = pd.DataFrame(eval_data)
+    df.to_csv(eval_analytics_savefile)
+    df = pd.DataFrame(eval_argmax_data)
+    df.to_csv(eval_argmax_analytics_savefile)
+
+    torch.save(
+        policy_model.state_dict(), 
+        policy_model_savefile
+    )
+
+# ./source/models.py
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from typing import Tuple
+
+class policyNetwork(nn.Module):
+    def __make_network(
+        self, 
+        in_features: int,
+        out_features: int
+    ) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Linear(
+                in_features=in_features, 
+                out_features=1024, 
+                device=self.device
+            ),
+            nn.SiLU(),
+            nn.Linear(
+                in_features=1024, 
+                out_features=2048, 
+                device=self.device
+            ),
+            nn.SiLU(),
+            nn.Linear(
+                in_features=2048, 
+                out_features=512, 
+                device=self.device
+            ),
+            nn.SiLU(),
+            nn.Linear(
+                in_features=512, 
+                out_features=out_features, 
+                device=self.device
+            )
+        )
+
+    def __init__(
+        self, 
+        observation_shape: int, 
+        action_shape: int, 
+        device: torch.device
+    ):
+        super().__init__()
+        self.observation_shape = observation_shape
+        self.action_shape = action_shape
+        self.device = device
+
+        self.actor_net = self.__make_network(
+            in_features=self.observation_shape, 
+            out_features=self.action_shape
+        )
+        self.critic_net = self.__make_network(
+            in_features=self.observation_shape, 
+            out_features=1
+        )
+        
+    def forward(
+        self, 
+        x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        
+        logits = self.actor_net(x)
+        value = self.critic_net(x)
+
+        return logits, value
+
+class policyNetworkLoRA(nn.Module):
+    def __init__(
+        self, 
+        policy_network: policyNetwork, 
+        rank: int
+    ):
+        super().__init__()
+        self.policy_network = policy_network
+        self.policy_network.requires_grad_(False)
+        self.rank = rank
+
+        self.a = nn.Parameter(
+            data=torch.randn(
+                size=(policy_network.observation_shape, rank), 
+                dtype=torch.float32, 
+                device=policy_network.device
+            ) * 0.01,
+            requires_grad=True
+        )
+        self.ca = nn.Parameter(
+            data=torch.randn(
+                size=(policy_network.observation_shape, rank), 
+                dtype=torch.float32, 
+                device=policy_network.device
+            ) * 0.01,
+            requires_grad=True
+        )
+        self.b = nn.Parameter(
+            data=torch.zeros(
+                size=(rank, policy_network.action_shape), 
+                dtype=torch.float32, 
+                device=policy_network.device
+            ),
+            requires_grad=True
+        )
+        self.cb = nn.Parameter(
+            data=torch.zeros(
+                size=(rank, 1), 
+                dtype=torch.float32, 
+                device=policy_network.device
+            ),
+            requires_grad=True
+        )
+
+    def forward(
+        self, 
+        x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        xa = x @ self.a
+        xc = x @ self.ca
+        
+        lora_logits = (F.gelu(F.silu(xa))) @ self.b
+        lora_value = (F.gelu(F.silu(xc))) @ self.cb
+
+        base_logits, base_value = self.policy_network(x)
+
+        return lora_logits + base_logits, lora_value + base_value
+
+
+# ./source/utils.py
+import gymnasium
+import torch
+import pandas as pd
+import torch.nn.functional as F
+from typing import Tuple, List
+from torch import nn
+from torch import distributions
+from tqdm import tqdm
+from dataclasses import dataclass
+
+@dataclass
+class rolloutBuffer:
+    observation: torch.Tensor
+    reward: torch.Tensor
+    action: torch.Tensor
+    log_prob: torch.Tensor
+    value: torch.Tensor       
+    entropy: torch.Tensor
+    std: torch.Tensor
+    mean: torch.Tensor
+    perplexity: torch.Tensor
+    done: torch.Tensor
+
+@dataclass
+class tunableConfig:
+    env_id: str
+    epochs_base: int
+    epochs_lora: int
+    epochs_eval: int
+    epochs_ppo: int
+    lr_base: float
+    lr_lora: float
+    n_steps_base: int
+    n_steps_lora: int
+    perturbation_wind_power: float
+    perturbation_wind_turbulence: float
+    rank: int
+    clip_ratio: float
+    critic_loss_weight: float
+    entropy_regulariser_weight: float
+    gamma: float
+    device: torch.device
+    seed: int
+    train_base: bool
+    retrain_base: bool
+    train_lora: bool    
+    train_base_analytics_file: str 
+    train_lora_analytics_file: str
+    train_rebase_analytics_file: str
+    trained_base_state_dict_file: str
+    trained_lora_state_dict_file: str
+    trained_rebase_state_dict_file: str
+    eval_base_analytics_file: str
+    eval_lora_analytics_file: str
+    eval_rebase_analytics_file: str
+    eval_argmax_base_analytics_file: str
+    eval_argmax_lora_analytics_file: str
+    eval_argmax_rebase_analytics_file: str
+
+
+

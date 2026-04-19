@@ -109,17 +109,15 @@ class policyNetworkLoRA(nn.Module):
             requires_grad=True
         )
 
-    def forward(
-        self, 
-        x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        # LoRA adapters (trainable, builds computation graph)
         xa = x @ self.a
         xc = x @ self.ca
-        
         lora_logits = (F.gelu(F.silu(xa))) @ self.b
         lora_value = (F.gelu(F.silu(xc))) @ self.cb
-
-        base_logits, base_value = self.policy_network(x)
-
+        
+        # Base network (completely frozen, NO graph, NO activation caching)
+        with torch.no_grad():
+            base_logits, base_value = self.policy_network(x)
+        
         return lora_logits + base_logits, lora_value + base_value

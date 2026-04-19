@@ -36,7 +36,6 @@ def draw_metrics(
     train_rebase_total_reward_mean = rebase_df[mean_metric_name]
     train_rebase_total_reward_std  = rebase_df[std_metric_name]
 
-
     axes[row_index][0].plot(eval_lora_total_reward_mean, label="lora")
     axes[row_index][0].fill_between(
         range(len(eval_argmax_lora_total_reward_mean)),
@@ -89,9 +88,70 @@ def draw_metrics(
     )
     axes[row_index][2].set_title(f"training phase {metric_name}")
     axes[row_index][2].legend()
+
+
+def plot_memory_usage(
+    base_df: pd.DataFrame, 
+    lora_df: pd.DataFrame, 
+    rebase_df: pd.DataFrame, 
+    save_path: str = "analysis/memory_usage.png"
+):
+    """Plot GPU memory usage over training epochs."""
     
+    # Check if memory columns exist
+    required_cols = ['memory_allocated_mb', 'memory_peak_mb', 'memory_reserved_mb']
+    
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # Plot allocated memory
+    ax = axes[0]
+    if 'memory_allocated_mb' in base_df.columns:
+        ax.plot(base_df['memory_allocated_mb'], label='Full Fine-tuning', color='blue', linewidth=2)
+    if 'memory_allocated_mb' in lora_df.columns:
+        ax.plot(lora_df['memory_allocated_mb'], label='LoRA Fine-tuning', color='green', linewidth=2)
+    if 'memory_allocated_mb' in rebase_df.columns:
+        ax.plot(rebase_df['memory_allocated_mb'], label='Re-base Fine-tuning', color='orange', linewidth=2)
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Memory (MB)')
+    ax.set_title('Allocated GPU Memory')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Plot peak memory
+    ax = axes[1]
+    if 'memory_peak_mb' in base_df.columns:
+        ax.plot(base_df['memory_peak_mb'], label='Full Fine-tuning', color='blue', linewidth=2)
+    if 'memory_peak_mb' in lora_df.columns:
+        ax.plot(lora_df['memory_peak_mb'], label='LoRA Fine-tuning', color='green', linewidth=2)
+    if 'memory_peak_mb' in rebase_df.columns:
+        ax.plot(rebase_df['memory_peak_mb'], label='Re-base Fine-tuning', color='orange', linewidth=2)
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Memory (MB)')
+    ax.set_title('Peak Allocated GPU Memory')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    # Plot reserved memory
+    ax = axes[2]
+    if 'memory_reserved_mb' in base_df.columns:
+        ax.plot(base_df['memory_reserved_mb'], label='Full Fine-tuning', color='blue', linewidth=2)
+    if 'memory_reserved_mb' in lora_df.columns:
+        ax.plot(lora_df['memory_reserved_mb'], label='LoRA Fine-tuning', color='green', linewidth=2)
+    if 'memory_reserved_mb' in rebase_df.columns:
+        ax.plot(rebase_df['memory_reserved_mb'], label='Re-base Fine-tuning', color='orange', linewidth=2)
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Memory (MB)')
+    ax.set_title('Reserved GPU Memory')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    print(f"Memory plot saved to {save_path}")
+
 
 def plot():
+    # Read all CSVs
     base_df = pd.read_csv("data/base_analytics2.csv")
     eval_base_df = pd.read_csv("data/eval_base_analytics2.csv")
     eval_argmax_base_df = pd.read_csv("data/eval_argmax_base_analytics2.csv")
@@ -102,8 +162,7 @@ def plot():
     eval_lora_df = pd.read_csv("data/eval_lora_analytics2.csv")
     eval_argmax_lora_df = pd.read_csv("data/eval_argmax_lora_analytics2.csv")
 
-    print(eval_base_df.columns)
-
+    # Create main dashboard
     fig: plt_figure.Figure
     axes: List[List[plt_axes.Axes]]
 
@@ -145,8 +204,12 @@ def plot():
         rebase_df, "perplexities", axes, 3
     )
 
-    
-
     plt.savefig("analysis/lunar_lander_dashboard.png", dpi=300)
+    print("Dashboard saved to analysis/lunar_lander_dashboard.png")
+    
+    # Generate memory usage plot
+    plot_memory_usage(base_df, lora_df, rebase_df)
+
+
 if __name__ == "__main__":
     plot()

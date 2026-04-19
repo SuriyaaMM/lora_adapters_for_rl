@@ -220,44 +220,57 @@ def __get_data(
     }
 
 def train(
-   config: tunableConfig,
-   epochs: int,
-   n_steps: int,
-   env: gymnasium.Env,
-   policy_model: nn.Module,
-   optimiser: optim.Optimizer,
-   desc: str,
-   colour: str,
-   train_analytics_savefile: str,
-   eval_analytics_savefile: str,
-   eval_argmax_analytics_savefile: str,
-   policy_model_savefile: str,
-   eval_only: bool
+    config: tunableConfig,
+    epochs: int,
+    n_steps: int,
+    env: gymnasium.Env,
+    policy_model: nn.Module,
+    optimiser: optim.Optimizer,
+    desc: str,
+    colour: str,
+    train_analytics_savefile: str,
+    eval_analytics_savefile: str,
+    eval_argmax_analytics_savefile: str,
+    policy_model_savefile: str,
+    eval_only: bool
 ):
-    pbar = tqdm(
-        total=epochs, 
-        desc=desc, 
-        colour=colour
-    )
+    """
+    Train or evaluate a policy model using PPO.
+
+    Records training metrics and, if using CUDA, GPU memory usage per epoch.
+    """
+    pbar = tqdm(total=epochs, desc=desc, colour=colour)
 
     train_data = []
     eval_data = []
     eval_argmax_data = []
-    
-    for _ in range(epochs):
+
+    # Memory tracking lists (only populated if CUDA is available)
+    memory_allocated_mb = []
+    memory_reserved_mb = []
+    memory_peak_mb = []
+
+    for epoch in range(epochs):
+        loss = 0.0  # Default in case eval_only is True
+
         if not eval_only:
             policy_model.train()
-            # =----- collect trajectories & do ppo update -----=
+
+            # Reset peak memory statistics before training phase
+            if config.device.type == 'cuda':
+                torch.cuda.reset_peak_memory_stats()
+
+            # ----- Collect trajectories & perform PPO update -----
             rollouts, total_reward_mean, total_reward_std = collect_trajectories(
-                n_steps=n_steps, 
-                env=env, 
-                policy_model=policy_model, 
-                device=config.device, 
+                n_steps=n_steps,
+                env=env,
+                policy_model=policy_model,
+                device=config.device,
                 seed=config.seed,
                 argmax_action=False
             )
             returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
-                rollouts=rollouts, 
+                rollouts=rollouts,
                 gamma=config.gamma
             )
             loss = update_ppo(
@@ -271,7 +284,20 @@ def train(
                 critic_loss_weight=config.critic_loss_weight,
                 entropy_regulariser_weight=config.entropy_regulariser_weight
             )
-            
+
+            # Record GPU memory after training update
+            if config.device.type == 'cuda':
+                mem_alloc = torch.cuda.memory_allocated(config.device) / (1024 ** 2)
+                mem_reserved = torch.cuda.memory_reserved(config.device) / (1024 ** 2)
+                mem_peak = torch.cuda.max_memory_allocated(config.device) / (1024 ** 2)
+            else:
+                mem_alloc = mem_reserved = mem_peak = 0.0
+
+            memory_allocated_mb.append(mem_alloc)
+            memory_reserved_mb.append(mem_reserved)
+            memory_peak_mb.append(mem_peak)
+
+            # Store training metrics
             train_data.append(__get_data(
                 rollouts=rollouts,
                 advantages_mean=advantages_mean,
@@ -282,19 +308,19 @@ def train(
                 loss=loss
             ))
 
-        # =----- random sampling evaluation -----=
+        # ----- Random sampling evaluation -----
         policy_model.eval()
         with torch.inference_mode():
             rollouts, total_reward_mean, total_reward_std = collect_trajectories(
-                n_steps=n_steps, 
-                env=env, 
-                policy_model=policy_model, 
-                device=config.device, 
+                n_steps=n_steps,
+                env=env,
+                policy_model=policy_model,
+                device=config.device,
                 seed=config.seed,
                 argmax_action=False
             )
             returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
-                rollouts=rollouts, 
+                rollouts=rollouts,
                 gamma=config.gamma
             )
             eval_data.append(__get_data(
@@ -304,21 +330,21 @@ def train(
                 advantages_std=advantages_std,
                 total_reward_mean=total_reward_mean,
                 total_reward_std=total_reward_std,
-                loss=loss
+                loss=loss  # loss from training phase (or 0 if eval_only)
             ))
 
-        # =----- argmax sampling evaluation -----=
+        # ----- Argmax action evaluation -----
         with torch.inference_mode():
             rollouts, total_reward_mean, total_reward_std = collect_trajectories(
-                n_steps=n_steps, 
-                env=env, 
-                policy_model=policy_model, 
-                device=config.device, 
+                n_steps=n_steps,
+                env=env,
+                policy_model=policy_model,
+                device=config.device,
                 seed=config.seed,
                 argmax_action=True
             )
             returns, advantages, advantages_mean, advantages_std, advantages_median = compute_ppo_advantages(
-                rollouts=rollouts, 
+                rollouts=rollouts,
                 gamma=config.gamma
             )
             eval_argmax_data.append(__get_data(
@@ -331,16 +357,19 @@ def train(
                 loss=loss
             ))
 
-        pbar.update()
+        pbar.update(1)
 
-    df = pd.DataFrame(train_data)
-    df.to_csv(train_analytics_savefile)
-    df = pd.DataFrame(eval_data)
-    df.to_csv(eval_analytics_savefile)
-    df = pd.DataFrame(eval_argmax_data)
-    df.to_csv(eval_argmax_analytics_savefile)
+    # ----- Save training analytics (including memory if tracked) -----
+    df_train = pd.DataFrame(train_data)
+    if memory_allocated_mb:
+        df_train['memory_allocated_mb'] = memory_allocated_mb
+        df_train['memory_reserved_mb'] = memory_reserved_mb
+        df_train['memory_peak_mb'] = memory_peak_mb
+    df_train.to_csv(train_analytics_savefile, index=False)
 
-    torch.save(
-        policy_model.state_dict(), 
-        policy_model_savefile
-    )
+    # ----- Save evaluation analytics -----
+    pd.DataFrame(eval_data).to_csv(eval_analytics_savefile, index=False)
+    pd.DataFrame(eval_argmax_data).to_csv(eval_argmax_analytics_savefile, index=False)
+
+    # ----- Save model state dict -----
+    torch.save(policy_model.state_dict(), policy_model_savefile)

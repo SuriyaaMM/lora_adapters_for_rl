@@ -1,5 +1,6 @@
 import gymnasium
 import torch
+import nvtx
 import pandas as pd
 import torch.nn.functional as F
 import torch.profiler as profiler
@@ -13,34 +14,28 @@ from source.utils import *
 from source.models import *
 from source.helpers import *
 
-def main(
-    config: tunableConfig
-):
+def main(config: tunableConfig):
     device = config.device
 
-    env = gymnasium.make(
-        id=config.env_id
-    )
+    env = gymnasium.make(id=config.env_id)
     perturbed_env = gymnasium.make(
-        id=config.env_id, 
-        enable_wind=True, 
-        wind_power=config.perturbation_wind_power, 
+        id=config.env_id,
+        enable_wind=True,
+        wind_power=config.perturbation_wind_power,
         turbulence_power=config.perturbation_wind_turbulence
     )
 
     policy_network_base = policyNetwork(
-        observation_shape=env.observation_space.shape[0], 
-        action_shape=env.action_space.n, 
+        observation_shape=env.observation_space.shape[0],
+        action_shape=env.action_space.n,
         device=device
     )
     optimiser_base = torch.optim.AdamW(
-        params=policy_network_base.parameters(), 
+        params=policy_network_base.parameters(),
         lr=config.lr_base
     )
 
-    
-    if config.train_base:
-        torch.cuda.memory._record_memory_history()
+    with nvtx.annotate("BASE_TRAIN", color="red", domain="BASE"):
         train(
             config=config,
             epochs=config.epochs_base,
@@ -56,70 +51,39 @@ def main(
             policy_model_savefile=config.trained_base_state_dict_file,
             eval_only=False,
         )
-        torch.cuda.memory._dump_snapshot("traces/mem_snapshot.pickle")
-        torch.cuda.memory._record_memory_history(enabled=None)
-    else:
-        policy_network_base.load_state_dict(
-            torch.load(
-                config.trained_base_state_dict_file, 
-                map_location=device
-            )
-        )
-    
+        torch.cuda.synchronize()
+
+    with nvtx.annotate("MEMORY_FENCE", color="yellow", domain="BASE"):
+        del optimiser_base
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
     policy_network_lora = policyNetworkLoRA(
-        policy_network=policy_network_base, 
+        policy_network=policy_network_base,
         rank=config.rank
     )
     optimiser_lora = torch.optim.AdamW(
-        params=policy_network_lora.parameters(), 
+        params=policy_network_lora.parameters(),
         lr=config.lr_lora
     )
 
-    policy_network_trainable_parameters = sum(p.numel() for p in policy_network_base.parameters())
-    policy_network_lora_trainable_parameters = sum(p.numel() for p in policy_network_lora.parameters() if p.requires_grad)
-
-    print(f"policy network trainable parameters : {policy_network_trainable_parameters / (1e6)}M")
-    print(f"lora trainable parameters : {policy_network_lora_trainable_parameters / (1e6)}M | {(policy_network_lora_trainable_parameters / policy_network_trainable_parameters) * 100}% of original")
-    
-    torch.cuda.memory._record_memory_history()
-    train(
-        config=config,
-        epochs=config.epochs_lora,
-        n_steps=config.n_steps_lora,
-        env=perturbed_env,
-        policy_model=policy_network_lora,
-        optimiser=optimiser_lora,
-        desc="training LoRA model",
-        colour="green",
-        train_analytics_savefile=config.train_lora_analytics_file,
-        eval_analytics_savefile=config.eval_lora_analytics_file,
-        eval_argmax_analytics_savefile=config.eval_argmax_lora_analytics_file,
-        policy_model_savefile=config.trained_lora_state_dict_file,
-        eval_only=False,
-    )
-    torch.cuda.memory._dump_snapshot("traces/mem_snapshot_lora.pickle")
-    torch.cuda.memory._record_memory_history(enabled=None)
-
-    if config.retrain_base:
-        policy_network_base.requires_grad_(True)
-        torch.cuda.memory._record_memory_history()
+    with nvtx.annotate("LORA_TRAIN", color="blue", domain="LORA"):
         train(
             config=config,
             epochs=config.epochs_lora,
-            n_steps=config.n_steps_base,
+            n_steps=config.n_steps_lora,
             env=perturbed_env,
-            policy_model=policy_network_base,
-            optimiser=optimiser_base,
-            desc="re-training base model",
-            colour="blue",
-            train_analytics_savefile=config.train_rebase_analytics_file,
-            eval_analytics_savefile=config.eval_rebase_analytics_file,
-            eval_argmax_analytics_savefile=config.eval_argmax_rebase_analytics_file,
-            policy_model_savefile=config.trained_rebase_state_dict_file,
+            policy_model=policy_network_lora,
+            optimiser=optimiser_lora,
+            desc="training LoRA model",
+            colour="green",
+            train_analytics_savefile=config.train_lora_analytics_file,
+            eval_analytics_savefile=config.eval_lora_analytics_file,
+            eval_argmax_analytics_savefile=config.eval_argmax_lora_analytics_file,
+            policy_model_savefile=config.trained_lora_state_dict_file,
             eval_only=False,
         )
-        torch.cuda.memory._dump_snapshot("traces/mem_snapshot_rebase.pickle")
-        torch.cuda.memory._record_memory_history(enabled=None)
+        torch.cuda.synchronize()
 
 if __name__ == "__main__":
     tunable_config = tunableConfig(
@@ -127,7 +91,7 @@ if __name__ == "__main__":
         epochs_base=1,
         epochs_eval=1,
         epochs_lora=1,
-        epochs_ppo=20,
+        epochs_ppo=1,
         lr_base=3e-4,
         lr_lora=3e-3,
         n_steps_base=8000,

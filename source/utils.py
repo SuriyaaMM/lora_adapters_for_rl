@@ -56,4 +56,5 @@ class tunableConfig:
     eval_argmax_base_analytics_file: str
     eval_argmax_lora_analytics_file: str
     eval_argmax_rebase_analytics_file: str
+    tb_root: str
 

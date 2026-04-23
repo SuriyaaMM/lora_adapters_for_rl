@@ -1,0 +1,10 @@
+.vscode
+__OTHER__/
+__pycache__/
+analysis/
+data/
+models/
+plots/
+traces/
+*.txt
+*.out

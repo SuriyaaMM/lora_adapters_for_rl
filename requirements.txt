@@ -3,3 +3,4 @@ gymnasium
 pandas
 numpy
 tqdm
+nvtx

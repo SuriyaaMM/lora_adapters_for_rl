@@ -2,13 +2,14 @@ import gymnasium
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.profiler as profiler
 import torch.distributions as distributions
 import torch.optim as optim
 import pandas as pd
 
 from typing import List, Tuple
 from tqdm import tqdm
-from utils import rolloutBuffer, tunableConfig
+from source.utils import rolloutBuffer, tunableConfig
 
 def collect_trajectories(
     n_steps: int, 
@@ -35,6 +36,7 @@ def collect_trajectories(
     rollouts: List[rolloutBuffer] = []
     completed_episode_rewards = []
     current_episode_reward = 0.0
+
 
     with torch.inference_mode(): 
         for _ in range(n_steps):
@@ -232,7 +234,7 @@ def train(
    eval_analytics_savefile: str,
    eval_argmax_analytics_savefile: str,
    policy_model_savefile: str,
-   eval_only: bool
+   eval_only: bool,
 ):
     pbar = tqdm(
         total=epochs, 
@@ -243,10 +245,11 @@ def train(
     train_data = []
     eval_data = []
     eval_argmax_data = []
-    
+
     for _ in range(epochs):
         if not eval_only:
             policy_model.train()
+
             # =----- collect trajectories & do ppo update -----=
             rollouts, total_reward_mean, total_reward_std = collect_trajectories(
                 n_steps=n_steps, 
@@ -260,6 +263,8 @@ def train(
                 rollouts=rollouts, 
                 gamma=config.gamma
             )
+
+            torch.cuda.nvtx.range_push("ppo update")
             loss = update_ppo(
                 epochs=config.epochs_ppo,
                 policy_model=policy_model,
@@ -281,8 +286,9 @@ def train(
                 total_reward_std=total_reward_std,
                 loss=loss
             ))
-
+        
         # =----- random sampling evaluation -----=
+        
         policy_model.eval()
         with torch.inference_mode():
             rollouts, total_reward_mean, total_reward_std = collect_trajectories(
@@ -344,3 +350,47 @@ def train(
         policy_model.state_dict(), 
         policy_model_savefile
     )
+
+def train_profile(
+   config: tunableConfig,
+   env: gymnasium.Env,
+   policy_model: nn.Module,
+   optimiser: optim.Optimizer,
+   desc: str,
+   colour: str,
+   name: str,
+):
+    pbar = tqdm(
+        total=1, 
+        desc=desc, 
+        colour=colour
+    )
+
+    policy_model.train()
+
+    with profiler.record_function(f"trajectory_collection_{name}"):
+        rollouts, total_reward_mean, total_reward_std = collect_trajectories(
+            n_steps=config.n_steps_base, 
+            env=env, 
+            policy_model=policy_model, 
+            device=config.device, 
+            seed=config.seed,
+            argmax_action=True
+        )
+
+    returns = torch.zeros(config.n_steps_base, device=config.device)
+    advantages = torch.zeros(config.n_steps_base, device=config.device)
+    
+    with profiler.record_function(f"training_{name}"):
+        loss = update_ppo(
+            epochs=1,
+            policy_model=policy_model,
+            optimiser=optimiser,
+            rollouts=rollouts,
+            returns=returns,
+            advantages=advantages,
+            clip_ratio=config.clip_ratio,
+            critic_loss_weight=config.critic_loss_weight,
+            entropy_regulariser_weight=config.entropy_regulariser_weight
+        )
+    
